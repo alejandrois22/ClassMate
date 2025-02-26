@@ -3,7 +3,7 @@ import requests
 
 app = FastAPI()
 
-# Set the upload URL to your Debian server's Flask app (running on port 8080)
+
 UPLOAD_URL = "http://localhost:8080/upload"
 # This URL is used to access the stored audio files
 AUDIO_ACCESS_URL = "http://localhost:8080/audio/"
@@ -18,7 +18,7 @@ async def upload_audio(file: UploadFile = File(...)):
     print("Debian Server Response:", response.status_code, response.text)
     
     if response.status_code == 200:
-        # Return the response from the Debian server (which includes the file URL)
+        # Return the response from the server (which includes the file URL)
         return response.json()
     return {
         "error": "Upload failed",

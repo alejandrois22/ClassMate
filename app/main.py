@@ -2,12 +2,12 @@ import streamlit as st
 import requests
 
 # Configuration
-BACKEND_URL = "http://localhost:8000"            # FastAPI backend running on Windows
-SERVER_AUDIO_URL = "http://192.168.0.50:8080/audio/"  # Debian server's audio file access URL
+BACKEND_URL = "http://localhost:8000"        
+SERVER_AUDIO_URL = "http://localhost:8080/audio/"
 
-# Set up the page title and (optional) logo/image
+# Set up the page title logo/image
 st.title("ClassMate - Conversational Insights from Recorded Lectures")
-# st.image("logo.png", width=200)  # Uncomment and update if you have a logo
+# st.image("logo.png", width=200)  #logo
 
 # --- Audio Upload Section ---
 st.header("Upload Audio")
@@ -24,9 +24,8 @@ if audio_file is not None:
         
         if response.status_code == 200:
             data = response.json()
-            # st.write("Server response:", data)  # Debugging output
+            # st.write("Server response:", data)  # Debugging
             if "url" in data:
-                # Clean up URL formatting if necessary
                 audio_url = data["url"].replace("http//", "http://").replace("//audio/", "/audio/")
                 st.success("File uploaded successfully!")
                 # Embed an audio player that plays from the server URL
