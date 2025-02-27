@@ -246,8 +246,7 @@ def main():
                         help="Path to CSV file with Clips data")
     parser.add_argument("--db_uri", required=True,
                         help="PostgreSQL connection URI (postgresql://user:pass@host/dbname)")
-    parser.add_argument("--create_tables", action="store_true",
-                        help="Create tables before loading data")
+    
     
     args = parser.parse_args()
     
