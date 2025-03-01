@@ -83,32 +83,25 @@ class ChunkEmbedder:
         return df_with_embeddings
     
     @staticmethod
-    def convert_embeddings_for_pgvector(embeddings_df):
+    def convert_embedding_for_pgvector(b64_embeddings_str):
         """
-        Convert embeddings to a format compatible with pgvector.
+        Convert embedding str to a format compatible with pgvector.
         
         Args:
-            embeddings_df: DataFrame with embeddings
+            b64_embeddings_str: String of an embedding encoded in Base64
             
         Returns:
-            DataFrame with pgvector compatible embeddings
+            String representation of an array of floats in pgvector format
         """
-        pgvector_df = embeddings_df.copy()
         
-        # Convert base64 strings back to numpy arrays for the pgvector format
-        pgvector_embeddings = []
-        for emb_str in embeddings_df["embedding"]:
-            # Decode base64 string to bytes
-            emb_bytes = base64.b64decode(emb_str)
-            # Convert bytes to numpy array
-            emb_array = np.frombuffer(emb_bytes, dtype=np.float32)
-            # Convert to pgvector format string
-            pgvector_str = '[' + ','.join(map(str, emb_array)) + ']'
-            pgvector_embeddings.append(pgvector_str)
-        
-        pgvector_df["pgvector_embedding"] = pgvector_embeddings
-        
-        return pgvector_df
+        # Decode base64 string to bytes
+        emb_bytes = base64.b64decode(b64_embeddings_str)
+        # Convert bytes to numpy array
+        emb_array = np.frombuffer(emb_bytes, dtype=np.float32)
+        # Convert to pgvector format string
+        pgvector_str = '[' + ','.join(map(str, emb_array)) + ']'
+
+        return pgvector_str
     
     @staticmethod
     def prepare_clips_table(embeddings_df):

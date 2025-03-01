@@ -26,6 +26,7 @@ import psycopg2
 from sqlalchemy import create_engine, text
 import json
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from embed_script import ChunkEmbedder # needed to access ChunkEmbedder.convert_embeddings_for_pgvector()
 
 def initialize_pgvector(connection_string):
     """
@@ -120,18 +121,48 @@ def load_original_audio_data(engine, csv_file):
     
     # Read CSV file
     df = pd.read_csv(csv_file)
-    
+    print(f"original_audio input df: {df}\n{'metadata' in df.columns}")
     # Ensure proper JSON formatting for metadata
     if 'metadata' in df.columns:
         # Handle potential string representation of JSON
         df['metadata'] = df['metadata'].apply(
             lambda x: json.dumps(json.loads(x)) if isinstance(x, str) else json.dumps(x)
         )
+    print(f'df metadata:{df['metadata']}')
+
+    # Connect directly with psycopg2 for more control over vector data
+    conn_str = engine.url.render_as_string(hide_password=False)
+    # conn_str = str(engine.url).replace('postgresql://', '')
+    print(f"connection is: {conn_str}")
+    conn = psycopg2.connect(conn_str)
+    cursor = conn.cursor()
+
+    try:
+        df = pd.read_csv(csv_file)
     
-    # Load data using pandas to_sql
-    df.to_sql('OriginalAudio', engine, if_exists='append', index=False)
+        for _, row in df.iterrows():
+            cursor.execute("""
+                           INSERT INTO OriginalAudio
+                           (audio_id,user_id,title,file_path,upload_date,metadata)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+            (row['audio_id'],
+            row['user_id'],
+            row['title'],
+            row['file_path'],
+            row['upload_date'],
+            row['metadata'])
+            )
+        conn.commit()
+        print(f"Loaded {len(df)} records into OriginalAudio table")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error loading OriginalAudio data: {e}")
+
+    finally:
+        cursor.close()
+        conn.close()
     
-    print(f"Loaded {len(df)} records into OriginalAudio table")
 
 def load_clips_data(engine, csv_file):
     """
@@ -158,7 +189,9 @@ def load_clips_data(engine, csv_file):
         for _, row in df.iterrows():
             # Extract vector from pgvector format
             embedding = row['embedding']
-            
+            # convert base64 embedding to pg_vector format
+            embedding = ChunkEmbedder.convert_embedding_for_pgvector(embedding)
+
             cursor.execute("""
             INSERT INTO Clips 
             (clip_id, audio_id, start_time, end_time, transcript, embedding, 
@@ -257,7 +290,7 @@ def main():
             return
     
     # Initialize database connection
-    engine = create_engine(args.db_uri)
+    engine = create_engine(args.db_uri, isolation_level="AUTOCOMMIT")
     
     # Initialize pgvector extension
     initialize_pgvector(args.db_uri) # connection_string = "postgresql://admin:secret@localhost:5432/testdb"
@@ -279,7 +312,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-"""
-TODO: check why OriginalAudio table is not loading any records. Converte from Base64 to the actual vector contents
-
-"""
