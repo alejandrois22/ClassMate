@@ -19,4 +19,4 @@ langchain-ollama
 langchain-core
 langchain-openai
 sentence-transformers
-
+honcho
