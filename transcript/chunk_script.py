@@ -49,9 +49,19 @@ class TranscriptChunker:
         self.overlap_tokens = overlap_tokens
         self.min_chunk_tokens = min_chunk_tokens
         
-        # Load spaCy model for semantic parsing
-        print("Loading spaCy model...")
-        self.nlp = spacy.load("en_core_web_sm")
+        # Attempt to use GPU with spaCy and load a GPU-accelerated transformer model.
+        print("Attempting to enable GPU for spaCy processing...")
+        try:
+            spacy.require_gpu()
+            print("GPU enabled for spaCy.")
+        except Exception as e:
+            print("GPU not available, using CPU for spaCy.")
+        
+        print("Loading spaCy model (GPU-accelerated model recommended)...")
+        # Switch to a transformer-based model that supports GPU, if available.
+        # Make sure to install "en_core_web_trf" by running:
+        # python -m spacy download en_core_web_trf
+        self.nlp = spacy.load("en_core_web_trf")
         
         # Set up sentence tokenizer
         self.sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')

@@ -27,6 +27,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import whisper
+import torch
 from pydub import AudioSegment
 from tqdm import tqdm
 
@@ -60,9 +61,14 @@ def transcribe_audio(file_path, model_name="medium"):
     Returns:
         Whisper result object with segments, text, etc.
     """
-    print(f"Loading Whisper model: {model_name}")
-    model = whisper.load_model(model_name)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = whisper.load_model(model_name, device=device)
+    print(f"Loading Whisper model: {model_name} on device: {device}")
+    print(f"Transcribing: {file_path} on device: {device}")
     
+    
+
     print(f"Transcribing: {file_path}")
     result = model.transcribe(
         file_path, 
