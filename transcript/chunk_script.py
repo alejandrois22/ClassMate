@@ -333,3 +333,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+ #  python chunk_script.py --input transcript.json --output chunks.csv --max_tokens 200

@@ -312,3 +312,4 @@ def main():
 if __name__ == "__main__":
     main()
 
+# python db_loader.py --audio_csv original_audio.csv --clips_csv embeddings_clips.csv --db_uri postgresql://admin:secret@localhost:5432/testdb

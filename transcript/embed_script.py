@@ -14,7 +14,7 @@ Requirements:
     - psycopg2 (optional, for direct database upload)
 
 Usage:
-    python embed_script.py --input chunks.csv --output embeddings.csv --model all-MiniLM-L6-v2
+    python embed_script.py --input chunks.csv --output embeddings_clips.csv --model all-MiniLM-L6-v2
 """
 
 import argparse
@@ -171,3 +171,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python embed_script.py --input chunks.csv --output embeddings_clips.csv --model all-MiniLM-L6-v2

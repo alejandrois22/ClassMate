@@ -28,7 +28,7 @@ This creates semantic chunks from the transcript, respecting natural language bo
 ### Step 3: Generate Vector Embeddings
 
 ```bash
-python embed_script.py --input chunks.csv --output embeddings.csv --model all-MiniLM-L6-v2 --pgvector
+python embed_script.py --input chunks.csv --output embeddings_clips.csv --model all-MiniLM-L6-v2 --pgvector
 ```
 
 This generates vector embeddings for each chunk and formats them for pgvector compatibility.

@@ -208,4 +208,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# asr_script.py --input SampleAudioTariffsVideo.mp3 --output output.json
+# python asr_script.py --input SampleAudioTariffsVideo.mp3 --output transcript.json --csv_output original_audio.csv --user_id user123 --title "Tariffs Youtube Video"
