@@ -1,78 +1,127 @@
 import streamlit as st
 import requests
 
-# Configuration
-BACKEND_URL = "http://localhost:8000"        
-SERVER_AUDIO_URL = "http://localhost:8080/audio/"
+# Configuration – point to your Flask backend.
+BACKEND_URL = "http://localhost:5000"
 
-# Set up the page title logo/image
-st.title("ClassMate - Conversational Insights from Recorded Lectures")
-# st.image("logo.png", width=200)  #logo
+# ------------------------------
+# Login/Registration Section
+# ------------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
 
-# --- Audio Upload Section ---
-st.header("Upload Audio")
-audio_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a"])
-
-if audio_file is not None:
-    # Preview the audio locally
-    st.audio(audio_file, format="audio/wav")
-    
-    if st.button("Upload & Send to Server"):
-        # Read file content
-        files = {"file": (audio_file.name, audio_file.read())}
-        response = requests.post(f"{BACKEND_URL}/upload-audio/", files=files)
-        
-        if response.status_code == 200:
-            data = response.json()
-            # st.write("Server response:", data)  # Debugging
-            if "url" in data:
-                audio_url = data["url"].replace("http//", "http://").replace("//audio/", "/audio/")
-                st.success("File uploaded successfully!")
-                # Embed an audio player that plays from the server URL
-                st.audio(audio_url)
+if not st.session_state.logged_in:
+    st.title("ClassMate - Login / Registration")
+    auth_mode = st.radio("Select mode:", ("Login", "Register"))
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if auth_mode == "Login":
+        if st.button("Login"):
+            response = requests.post(f"{BACKEND_URL}/api/login", json={"username": username, "password": password})
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    st.success("Logged in successfully!")
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    # Initialize conversation history
+                    st.session_state.chat_history = []
+                    st.rerun()
+                else:
+                    st.error(data.get("message", "Login failed"))
             else:
-                st.error("Response does not contain 'url'. Check the server response.")
-                st.write("Full response:", data)
-        else:
-            st.error("Upload failed. Please check the server.")
+                st.error("Login request failed.")
+    else:  # Registration mode
+        if st.button("Register"):
+            response = requests.post(f"{BACKEND_URL}/api/register", json={"username": username, "password": password})
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    st.success("Registration successful! Please log in.")
+                else:
+                    st.error(data.get("message", "Registration failed"))
+            else:
+                st.error("Registration request failed.")
+    st.stop()  # Stop here if not logged in
 
-# --- Audio Retrieval Section ---
-st.header("Retrieve Stored Audio")
-filename = st.text_input("Enter audio filename (e.g., lecture1.opus)")
-if st.button("Retrieve"):
-    response = requests.get(f"{BACKEND_URL}/get-audio/{filename}")
-    if response.status_code == 200:
-        data = response.json()
-        if "url" in data:
-            # Embed an audio player for the retrieved file
-            st.audio(data["url"])
+# ------------------------------
+# Main Application (After Login)
+# ------------------------------
+
+# Sidebar: Audio Upload, Listing & Deletion
+with st.sidebar:
+    st.header("Audio Features")
+    
+    # --- Audio Upload Section ---
+    st.subheader("Upload Audio")
+    audio_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a"])
+    if audio_file is not None:
+        st.audio(audio_file, format="audio/wav")
+        if st.button("Upload & Send to Server"):
+            files = {"file": (audio_file.name, audio_file.read())}
+            data = {"username": st.session_state.username}
+            response = requests.post(f"{BACKEND_URL}/upload-audio", data=data, files=files)
+            if response.status_code == 200:
+                res_data = response.json()
+                if "url" in res_data:
+                    st.success("File uploaded successfully!")
+                    st.rerun()  # Refresh list after upload
+                else:
+                    st.error("Response does not contain 'url'.")
+            else:
+                st.error("Upload failed. Please check the server.")
+
+    # --- List User Audios ---
+    st.subheader("My Uploaded Audios")
+    list_response = requests.post(f"{BACKEND_URL}/api/list-audios", json={"username": st.session_state.username})
+    if list_response.status_code == 200:
+        audios = list_response.json().get("audios", [])
+        if audios:
+            for audio in audios:
+                st.markdown(f"**{audio['filename']}**")
+                st.audio(audio["url"])
+                if st.button("Delete", key=f"delete_{audio['filename']}"):
+                    del_response = requests.post(
+                        f"{BACKEND_URL}/api/delete-audio",
+                        json={"username": st.session_state.username, "filename": audio["filename"]}
+                    )
+                    if del_response.status_code == 200:
+                        st.success("File deleted successfully!")
+                        st.rerun()  # Refresh list after deletion
+                    else:
+                        st.error("Failed to delete file.")
         else:
-            st.error("Response does not contain 'url'.")
+            st.info("No uploaded audios yet.")
     else:
-        st.error("File not found.")
+        st.error("Failed to list audios.")
 
-# --- Chatbot Interface ---
+# Main page: Chatbot Interface
+st.title("ClassMate - Conversational Insights from Recorded Lectures")
 st.header("Chatbot Interface")
 
-# Initialize chat history in session state if not present
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Display chat history
-st.subheader("Conversation History")
-for chat in st.session_state.chat_history:
-    st.markdown(f"**{chat['sender']}**: {chat['message']}")
+# Display conversation history using keys "user" and "chatbot_response"
+for exchange in st.session_state.chat_history:
+    with st.chat_message("user"):
+        st.markdown(exchange["user"])
+    with st.chat_message("assistant"):
+        st.markdown(exchange["chatbot_response"])
 
-# Input for new chat message
-chat_input = st.text_input("Enter your message", key="chat_input")
-if st.button("Send"):
-    if chat_input:
-        # Append the user's message
-        st.session_state.chat_history.append({"sender": "User", "message": chat_input})
-        # Placeholder response for the chatbot (replace with actual logic later)
-        bot_response = "This is a placeholder response."
-        st.session_state.chat_history.append({"sender": "Bot", "message": bot_response})
-        # Clear the input field
-        st.session_state.chat_input = ""
-        # Rerun to update display (optional, depending on your design)
-        st.experimental_rerun()
+# Chat input field using st.chat_input
+chat_input = st.chat_input("Enter your question for the chatbot:")
+if chat_input:
+    # Append new exchange with an empty assistant response
+    st.session_state.chat_history.append({"user": chat_input, "chatbot_response": ""})
+    payload = {"question": chat_input, "conversation_history": st.session_state.chat_history}
+    response = requests.post(f"{BACKEND_URL}/chat", json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        answer = data.get("answer", "No answer returned.")
+        st.session_state.chat_history[-1]["chatbot_response"] = answer
+        st.rerun()
+    else:
+        st.error("Error getting chatbot response.")
