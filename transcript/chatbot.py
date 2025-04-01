@@ -63,7 +63,7 @@ class Chatbot:
         total_length = 0
         for entry in reversed(conversation_history):
             msg = f"User: {entry['user']}\nAssistant: {entry['chatbot_response']}\n{'-'*35}\n"
-            if total_length + len(msg) > 2000:
+            if total_length + len(msg) > 20000:
                 break
             history_entries.append(msg)
             total_length += len(msg)
