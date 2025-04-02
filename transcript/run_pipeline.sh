@@ -34,10 +34,11 @@ python asr_script.py \
 # Segments the transcript into manageable semantic chunks with a max token limit.
 # Useful for maintaining coherence and preparing for embedding.
 python chunk_script.py \
-  --input transcript.json \
-  --output chunks.csv \
-  --max_tokens 200
-
+ --input transcript.json \
+ --output chunks.csv \
+ --max_tokens 200 \
+ --overlap 20 \
+ --min_chunk_tokens 10
 # ---------------------------------------
 # Step 3: Generate vector embeddings for each chunk
 # ---------------------------------------
