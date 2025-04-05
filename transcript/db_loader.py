@@ -27,6 +27,8 @@ from sqlalchemy import create_engine, text
 import json
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from embed_script import ChunkEmbedder # needed to access ChunkEmbedder.convert_embeddings_for_pgvector()
+from tqdm import tqdm # Optional: Added for progress feedback during data prep
+from psycopg2.extras import execute_values # <--- Import added for bulk insert
 
 def initialize_pgvector(connection_string):
     """
@@ -121,14 +123,14 @@ def load_original_audio_data(engine, csv_file):
     
     # Read CSV file
     df = pd.read_csv(csv_file)
-    print(f"original_audio input df: {df}\n{'metadata' in df.columns}")
+    # print(f"original_audio input df: {df}\n{'metadata' in df.columns}")
     # Ensure proper JSON formatting for metadata
     if 'metadata' in df.columns:
         # Handle potential string representation of JSON
         df['metadata'] = df['metadata'].apply(
             lambda x: json.dumps(json.loads(x)) if isinstance(x, str) else json.dumps(x)
         )
-    print(f'df metadata:{df['metadata']}')
+    # print(f'df metadata:{df['metadata']}')
 
     # Connect directly with psycopg2 for more control over vector data
     conn_str = engine.url.render_as_string(hide_password=False)
@@ -166,59 +168,105 @@ def load_original_audio_data(engine, csv_file):
 
 def load_clips_data(engine, csv_file):
     """
-    Load data into the Clips table.
-    
+    Load data into the Clips table using execute_values for bulk insertion.
+
     Args:
         engine: SQLAlchemy engine
-        csv_file: Path to CSV file with Clips data
+        csv_file: Path to CSV file with Clips data (expects base64 embedding)
     """
-    print(f"Loading Clips data from {csv_file}...")
-    
-    # Connect directly with psycopg2 for more control over vector data
-    conn_str = engine.url.render_as_string(hide_password=False)
-    # conn_str = str(engine.url).replace('postgresql://', '')
-    print(f"connection is: {conn_str}")
-    conn = psycopg2.connect(conn_str)
-    cursor = conn.cursor()
-    
-    try:
-        # Read CSV file
-        df = pd.read_csv(csv_file)
-        
-        # Insert records one by one (better for handling vector data)
-        for _, row in df.iterrows():
-            # Extract vector from pgvector format
-            embedding = row['embedding']
-            # convert base64 embedding to pg_vector format
-            embedding = ChunkEmbedder.convert_embedding_for_pgvector(embedding)
+    print(f"Loading Clips data from {csv_file} using bulk insert...")
 
-            cursor.execute("""
-            INSERT INTO Clips 
-            (clip_id, audio_id, start_time, end_time, transcript, embedding, 
+    try:
+        df = pd.read_csv(csv_file)
+        if df.empty:
+            print("Clips CSV file is empty. No data to load.")
+            return
+
+        # --- Prepare data for bulk insert ---
+        print("Preparing data for bulk insertion...")
+        data_tuples = []
+        required_cols = ['clip_id', 'audio_id', 'start_time', 'end_time', 'transcript', 'embedding', 'created_at', 'updated_at']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+             print(f"Error: Missing required columns in {csv_file}: {', '.join(missing_cols)}")
+             return
+
+        for _, row in tqdm(df.iterrows(), total=len(df), desc="Converting Embeddings"):
+            try:
+                # Convert base64 embedding to pg_vector format string
+                b64_embedding = row['embedding']
+                if pd.isna(b64_embedding):
+                    print(f"Warning: Skipping row with missing embedding for clip_id {row['clip_id']}")
+                    continue
+                pgvector_embedding = ChunkEmbedder.convert_embedding_for_pgvector(b64_embedding)
+
+                # Handle optional confidence_score, defaulting to None if missing or NaN
+                confidence_score = row.get('confidence_score')
+                if pd.isna(confidence_score):
+                    confidence_score = None # Store as SQL NULL
+
+                data_tuples.append((
+                    row['clip_id'],
+                    row['audio_id'],
+                    row['start_time'],
+                    row['end_time'],
+                    row['transcript'],
+                    pgvector_embedding, # The converted string '[f1, f2,...]'
+                    confidence_score,
+                    row['created_at'],
+                    row['updated_at']
+                ))
+            except Exception as conversion_err:
+                print(f"Error processing row for clip_id {row.get('clip_id', 'N/A')}: {conversion_err}")
+                # Optionally skip this row or halt execution
+
+        if not data_tuples:
+             print("No valid data prepared for insertion.")
+             return
+
+        # --- Perform bulk insert ---
+        conn_str = engine.url.render_as_string(hide_password=False)
+        conn = psycopg2.connect(conn_str)
+        cursor = conn.cursor()
+
+        try:
+            print(f"Executing bulk insert for {len(data_tuples)} records...")
+            # Define the SQL template for execute_values
+            sql_query = """
+            INSERT INTO Clips
+            (clip_id, audio_id, start_time, end_time, transcript, embedding,
              confidence_score, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                row['clip_id'],
-                row['audio_id'],
-                row['start_time'],
-                row['end_time'],
-                row['transcript'],
-                embedding,
-                row.get('confidence_score', 0.0),
-                row['created_at'],
-                row['updated_at']
-            ))
-        
-        conn.commit()
-        print(f"Loaded {len(df)} records into Clips table")
-    
+            VALUES %s
+            ON CONFLICT (clip_id) DO NOTHING;
+            """
+            # Note: ON CONFLICT assumes clip_id is the primary key / unique constraint
+            # Adjust conflict handling if needed (e.g., DO UPDATE SET ...)
+
+            execute_values(cursor, sql_query, data_tuples, page_size=500) # page_size can be tuned
+
+            conn.commit()
+            print(f"Successfully loaded/updated {len(data_tuples)} records (this may vary due to ON CONFLICT) into Clips table.") # Note: ON CONFLICT makes count less precise
+
+        except psycopg2.Error as db_err:
+            conn.rollback()
+            print(f"Database error during bulk insert: {db_err}")
+            print("Data loading rolled back.")
+            raise # Re-raise the database error
+        except Exception as e:
+            conn.rollback()
+            print(f"Error loading Clips data during bulk insert: {e}")
+            raise # Re-raise other errors
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    except FileNotFoundError:
+         print(f"Error: CSV file not found at {csv_file}")
+    except pd.errors.EmptyDataError:
+         print(f"Warning: CSV file {csv_file} is empty.")
     except Exception as e:
-        conn.rollback()
-        print(f"Error loading Clips data: {e}")
-    
-    finally:
-        cursor.close()
-        conn.close()
+         print(f"An unexpected error occurred during Clips loading preparation: {e}")
 
 def verify_data_loading(engine):
     """
