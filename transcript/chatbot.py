@@ -51,7 +51,7 @@ class Chatbot:
                    1 - (embedding <-> %s) AS similarity
             FROM Clips
             ORDER BY embedding <-> %s
-            LIMIT 2
+            LIMIT 3
             """
             # print("Executing similarity search query...")
             cur.execute(query, (embedding_str, embedding_str))
