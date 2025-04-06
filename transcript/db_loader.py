@@ -330,6 +330,9 @@ def main():
     
     
     args = parser.parse_args()
+    OUTPUT_FOLDER = "output_files"
+    args.audio_csv = os.path.join(OUTPUT_FOLDER, args.audio_csv)
+    args.clips_csv = os.path.join(OUTPUT_FOLDER, args.clips_csv)
     
     # Verify input files exist
     for file_path in [args.audio_csv, args.clips_csv]:

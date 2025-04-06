@@ -108,7 +108,7 @@ class Chatbot:
 
         # Define the prompt including conversation history.
         prompt_template = PromptTemplate(
-            template="""You are an AI assistant specialized in answering questions based *only* on the provided context. If the context does not contain the answer, say you don't have enough information in the provided text. You also have a conversation history for context.
+            template="""You are an AI assistant specialized in answering questions based *only* on the provided context. The provided context is from a transcript of a lecture. If the context does not contain the answer, say you don't have enough information in the provided text. You also have a conversation history for context.
 Conversation History:
 {conversation_history}
 
@@ -260,6 +260,23 @@ if __name__ == "__main__":
             "What is the historical comparison made about Trump's tariffs?"
         ]
         # --- End of Predefined Questions ---
+        predefined_questions = [
+    "What personal experience sparked the speaker's interest in addiction?",
+    "Why did the speaker travel around the world, and who did he meet?",
+    "What is the traditional view of addiction that the speaker challenges?",
+    "How does the example of diamorphine (medical heroin) contradict the traditional view of addiction?",
+    "What was the Rat Park experiment, and what did it show?",
+    "What human example supports the findings of the Rat Park experiment?",
+    "What alternative explanation for addiction does the speaker propose?",
+    "What was Portugal's approach to dealing with addiction, and what were the results?",
+    "How does our culture typically respond to addiction, according to the speaker?",
+    "What is the speaker's main message about how we should treat addicts?",
+    "Why does the speaker criticize the show 'Intervention'?",
+    "What does the speaker suggest is the true opposite of addiction?",
+    "How does the speaker relate modern society to the Rat Park experiment?",
+    "What societal trends does the speaker mention as contributing to disconnection?",
+    "What did the speaker learn about helping loved ones with addiction?"
+]
 
         # Run the tests
         run_predefined_tests(chatbot, engine, predefined_questions)
@@ -298,4 +315,4 @@ if __name__ == "__main__":
 
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "deepseek-r1:14b"
 
-# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:7b"
+# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:14b"

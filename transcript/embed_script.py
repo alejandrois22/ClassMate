@@ -136,7 +136,8 @@ def main():
                         help="Add pgvector compatible format")
     
     args = parser.parse_args()
-    
+    OUTPUT_FOLDER = "output_files"
+    args.input = os.path.join(OUTPUT_FOLDER, args.input)
     # Verify input file exists
     if not os.path.exists(args.input):
         print(f"Error: Input file {args.input} does not exist")
@@ -165,6 +166,7 @@ def main():
         clips_df.to_csv(clips_output, index=False)
         print(f"Saved Clips table data to: {clips_output}")
     
+    args.output = os.path.join(OUTPUT_FOLDER, args.output)
     # Save embeddings to CSV
     embeddings_df.to_csv(args.output, index=False)
     print(f"Saved embeddings to: {args.output}")

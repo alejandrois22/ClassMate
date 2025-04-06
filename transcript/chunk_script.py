@@ -411,11 +411,14 @@ def main():
                         help="Minimum NLTK tokens for a chunk to be kept (default: 10)")
 
     args = parser.parse_args()
+    OUTPUT_FOLDER = "output_files"
+    args.input = os.path.join(OUTPUT_FOLDER, args.input)
 
     # Verify input file exists
     if not os.path.exists(args.input):
         print(f"Error: Input file {args.input} does not exist")
         return
+    
 
     # Load transcript data
     try:
@@ -476,6 +479,7 @@ def main():
 
         chunks_df = chunks_df[expected_cols] # Enforce order
 
+        args.output = os.path.join(OUTPUT_FOLDER, args.output)
         # Save to CSV
         try:
             chunks_df.to_csv(args.output, index=False, encoding='utf-8', float_format='%.3f') # Format floats for timestamps

@@ -160,6 +160,17 @@ def generate_csv_output(transcript_data, output_csv):
     original_audio_df.to_csv(output_csv, index=False)
     print(f"Saved OriginalAudio data to: {output_csv}")
 
+
+
+def ensure_output_folder_exists():
+    folder_name = 'output_files'
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+        print(f"Folder '{folder_name}' created.")
+    else:
+        print(f"Folder '{folder_name}' already exists.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Transcribe audio file with word-level timestamps")
     parser.add_argument("--input", required=True, help="Path to input audio file")
@@ -195,7 +206,11 @@ def main():
         user_id=args.user_id,
         title=args.title
     )
-    
+
+    ensure_output_folder_exists()
+    OUTPUT_FOLDER = "output_files"
+    args.output = os.path.join(OUTPUT_FOLDER, args.output)
+
     # Save JSON output
     with open(args.output, 'w', encoding='utf-8') as f:
         json.dump(transcript_data, f, ensure_ascii=False, indent=2)
@@ -204,6 +219,7 @@ def main():
     
     # Generate CSV if requested
     if args.csv_output:
+        args.csv_output = os.path.join(OUTPUT_FOLDER, args.csv_output)
         generate_csv_output(transcript_data, args.csv_output)
 
 if __name__ == "__main__":
