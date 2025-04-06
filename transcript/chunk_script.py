@@ -35,7 +35,7 @@ from thefuzz import fuzz
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
-    nltk.download('punkt')
+    nltk.download('punkt_tab') # used to be: nltk.download('punkt')
 
 class TranscriptChunker:
     def __init__(self, max_tokens=200, overlap_tokens=20, min_chunk_tokens=10, detected_language="en"):
