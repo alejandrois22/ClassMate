@@ -128,6 +128,7 @@ def format_transcript_output(result, metadata, file_path, user_id=None, title=No
         "title": title,
         "file_path": os.path.abspath(file_path),
         "upload_date": datetime.now().isoformat(),
+        "language": result.get("language", "Unknown"),
         "metadata": metadata,
         "transcript": {
             "text": result["text"],

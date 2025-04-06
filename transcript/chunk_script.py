@@ -38,7 +38,7 @@ except LookupError:
     nltk.download('punkt')
 
 class TranscriptChunker:
-    def __init__(self, max_tokens=200, overlap_tokens=20, min_chunk_tokens=10):
+    def __init__(self, max_tokens=200, overlap_tokens=20, min_chunk_tokens=10, detected_language="en"):
         """
         Initialize the chunker with parameters.
 
@@ -67,10 +67,16 @@ class TranscriptChunker:
         print("Loading spaCy model (en_core_web_trf recommended)...")
         # Ensure "en_core_web_trf" is installed: python -m spacy download en_core_web_trf
         try:
-            self.nlp = spacy.load("en_core_web_trf")
+            if detected_language == "es":
+                print("Detected language: SPANISH... Loading es_core_web_trf")
+                model_name = "es_core_news_md"
+            else:
+                model_name = "en_core_web_trf"
+    
+            self.nlp= spacy.load(model_name)
         except OSError:
-            print("Warning: 'en_core_web_trf' not found. Falling back to 'en_core_web_sm'.")
-            print("For better performance, install the transformer model: python -m spacy download en_core_web_trf")
+            print(f"Warning: '{model_name}' not found. Falling back to 'en_core_web_sm'.")
+            print(f"For better performance, install the transformer model: python -m spacy download {model_name}")
             try:
                  self.nlp = spacy.load("en_core_web_sm")
             except OSError:
@@ -436,7 +442,8 @@ def main():
         chunker = TranscriptChunker(
             max_tokens=args.max_tokens,
             overlap_tokens=args.overlap,
-            min_chunk_tokens=args.min_chunk_tokens
+            min_chunk_tokens=args.min_chunk_tokens,
+            detected_language=transcript_data.get("language", "Unknown")
         )
     except ValueError as e:
          print(f"Error initializing chunker: {e}")
