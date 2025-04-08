@@ -3,6 +3,7 @@ from transcript.chatbot import Chatbot
 from sqlalchemy import create_engine, text
 import os
 from passlib.hash import pbkdf2_sha256
+import subprocess
 
 app = Flask(__name__)
 
@@ -20,20 +21,20 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    """
-    Expects JSON with 'question' and optional 'conversation_history' fields.
-    Calls the chatbot to generate a response using the provided conversation history.
-    """
     data = request.get_json()
     question = data.get("question")
     conversation_history = data.get("conversation_history", [])
+    target_title = data.get("target_title")
     if not question:
         return jsonify({"error": "No question provided"}), 400
     try:
-        response = chatbot.generate_response(question, engine, conversation_history)
+        response = chatbot.generate_response(question, engine, conversation_history, target_title)
         return jsonify({"answer": response.get("chatbot_response")})
     except Exception as e:
+        # Log the exception details so you can debug the error.
+        print("Error in /chat endpoint:", str(e))
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/upload-audio', methods=['POST'])
 def upload_audio():
@@ -90,22 +91,16 @@ def get_user_audio(folder, filename):
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    """
-    Registers a new user.
-    Expects JSON with 'username' and 'password'.
-    """
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
 
-    # Hash the password
     hashed_password = pbkdf2_sha256.hash(password)
 
     try:
         with engine.begin() as conn:
-            # Insert new user into users table
             conn.execute(text("""
                 INSERT INTO users (username, password, storage_folder, question_count)
                 VALUES (:username, :password, :storage_folder, :question_count)
@@ -117,15 +112,10 @@ def register():
             })
         return jsonify({"success": True, "message": "Registration successful"}), 200
     except Exception as e:
-        # If username already exists or another error occurs
         return jsonify({"success": False, "message": str(e)}), 400
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """
-    Logs in an existing user.
-    Expects JSON with 'username' and 'password'.
-    """
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
@@ -160,10 +150,6 @@ def login():
 
 @app.route('/api/list-audios', methods=['POST'])
 def list_audios():
-    """
-    Returns a list of uploaded audios for a user.
-    Expects JSON with 'username'.
-    """
     data = request.get_json()
     username = data.get("username")
     if not username:
@@ -196,17 +182,12 @@ def list_audios():
 
 @app.route('/api/delete-audio', methods=['POST'])
 def delete_audio():
-    """
-    Deletes an audio file for a user.
-    Expects JSON with 'username' and 'filename'.
-    """
     data = request.get_json()
     username = data.get("username")
     filename = data.get("filename")
     if not username or not filename:
         return jsonify({"error": "Username and filename required"}), 400
 
-    # Retrieve user's storage folder
     with engine.connect() as conn:
         result = conn.execute(
             text("SELECT storage_folder FROM users WHERE username = :username"),
@@ -227,6 +208,58 @@ def delete_audio():
         return jsonify({"success": True, "message": "File deleted successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ------------------------------
+# Process Audio Endpoint
+# ------------------------------
+
+@app.route('/api/process-audio', methods=['POST'])
+def process_audio():
+    """
+    Triggers the audio processing pipeline for a target audio.
+    Expects JSON with 'username' and 'filename'.
+    Uses a Windows batch file (process_audio.bat) to run the pipeline.
+    Runs the process in a background thread so that Flask returns immediately.
+    The title is derived from the filename (without extension) to reference the clip in the DB.
+    """
+    data = request.get_json()
+    username = data.get("username")
+    filename = data.get("filename")
+    if not username or not filename:
+        return jsonify({"error": "Username and filename required"}), 400
+
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT storage_folder FROM users WHERE username = :username"), {"username": username})
+        row = result.fetchone()
+        if not row:
+            return jsonify({"error": "User not found"}), 404
+        user_folder = row[0]
+
+    audio_path = os.path.join(UPLOAD_FOLDER, user_folder, filename)
+    if not os.path.exists(audio_path):
+        return jsonify({"error": "Audio file not found"}), 404
+
+    # Get the title from the filename (without extension)
+    title, _ = os.path.splitext(filename)
+
+    # Define a background function to run the pipeline.
+    def run_pipeline():
+        try:
+            import subprocess
+            # Use Windows command to run the batch file
+            subprocess.run(["cmd", "/c", "process_audio.bat", audio_path, username, title], check=True)
+            print("Audio processing completed successfully for:", title)
+        except Exception as e:
+            print("Error processing audio in background thread:", str(e))
+
+    # Start the pipeline in a background thread.
+    import threading
+    threading.Thread(target=run_pipeline).start()
+
+    return jsonify({"success": True, "message": "Audio processing started. It may take a few minutes."}), 200
+
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

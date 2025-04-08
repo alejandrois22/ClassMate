@@ -17,6 +17,7 @@ Usage:
     python embed_script.py --input chunks.csv --output embeddings_clips.csv --model all-MiniLM-L6-v2
 """
 
+
 import argparse
 import os
 import numpy as np

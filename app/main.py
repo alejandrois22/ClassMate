@@ -1,8 +1,11 @@
 import streamlit as st
 import requests
+import os
 
 # Configuration – point to your Flask backend.
 BACKEND_URL = "http://localhost:5000"
+
+st.image("app/assets/logo.png", width=750)  # Adjust the width as needed
 
 # ------------------------------
 # Login/Registration Section
@@ -13,7 +16,7 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    st.title("ClassMate - Login / Registration")
+    st.title("Login / Registration")
     auth_mode = st.radio("Select mode:", ("Login", "Register"))
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -26,8 +29,8 @@ if not st.session_state.logged_in:
                     st.success("Logged in successfully!")
                     st.session_state.logged_in = True
                     st.session_state.username = username
-                    # Initialize conversation history
                     st.session_state.chat_history = []
+                    st.session_state.target_title = None
                     st.rerun()
                 else:
                     st.error(data.get("message", "Login failed"))
@@ -44,13 +47,13 @@ if not st.session_state.logged_in:
                     st.error(data.get("message", "Registration failed"))
             else:
                 st.error("Registration request failed.")
-    st.stop()  # Stop here if not logged in
+    st.stop()
 
 # ------------------------------
 # Main Application (After Login)
 # ------------------------------
 
-# Sidebar: Audio Upload, Listing & Deletion
+# Sidebar: Audio Upload, Listing, Deletion, and Processing
 with st.sidebar:
     st.header("Audio Features")
     
@@ -67,7 +70,7 @@ with st.sidebar:
                 res_data = response.json()
                 if "url" in res_data:
                     st.success("File uploaded successfully!")
-                    st.rerun()  # Refresh list after upload
+                    st.rerun()
                 else:
                     st.error("Response does not contain 'url'.")
             else:
@@ -79,9 +82,31 @@ with st.sidebar:
     if list_response.status_code == 200:
         audios = list_response.json().get("audios", [])
         if audios:
+            # Create a list of target options (using filename without extension)
+            target_options = {}
             for audio in audios:
                 st.markdown(f"**{audio['filename']}**")
                 st.audio(audio["url"])
+                # Button to process audio (runs pipeline)
+                if st.button("Process Audio", key=f"process_{audio['filename']}"):
+                    process_response = requests.post(
+                        f"{BACKEND_URL}/api/process-audio",
+                        json={"username": st.session_state.username, "filename": audio["filename"]}
+                    )
+                    if process_response.status_code == 200:
+                        st.success(process_response.json().get("message", "Audio processed."))
+                        st.rerun()
+                    else:
+                        st.error("Failed to process audio.")
+                # Button to select as target
+                if st.button("Select as Target", key=f"select_{audio['filename']}"):
+                    title, _ = os.path.splitext(audio["filename"])
+                    st.session_state.target_title = title
+                    st.success(f"Target audio set to: {title}")
+                    st.rerun()
+                # Add to options list for later use if desired
+                target_options[audio["filename"]] = os.path.splitext(audio["filename"])[0]
+                # Button to delete audio
                 if st.button("Delete", key=f"delete_{audio['filename']}"):
                     del_response = requests.post(
                         f"{BACKEND_URL}/api/delete-audio",
@@ -89,7 +114,7 @@ with st.sidebar:
                     )
                     if del_response.status_code == 200:
                         st.success("File deleted successfully!")
-                        st.rerun()  # Refresh list after deletion
+                        st.rerun()
                     else:
                         st.error("Failed to delete file.")
         else:
@@ -97,9 +122,18 @@ with st.sidebar:
     else:
         st.error("Failed to list audios.")
 
+    # Optionally display currently selected target
+    if st.session_state.get("target_title"):
+        st.info(f"Current target audio for Q&A: {st.session_state.target_title}")
+
 # Main page: Chatbot Interface
-st.title("ClassMate - Conversational Insights from Recorded Lectures")
-st.header("Chatbot Interface")
+st.header("Conversational Insights from Recorded Lectures")
+st.markdown(
+    "<h4 style='font-weight:normal; font-size:20px;'>Upload your audio file and process it to select it as target</h4>", 
+    unsafe_allow_html=True
+)
+
+
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -112,11 +146,14 @@ for exchange in st.session_state.chat_history:
         st.markdown(exchange["chatbot_response"])
 
 # Chat input field using st.chat_input
-chat_input = st.chat_input("Enter your question for the chatbot:")
+chat_input = st.chat_input("Enter your question:")
 if chat_input:
-    # Append new exchange with an empty assistant response
     st.session_state.chat_history.append({"user": chat_input, "chatbot_response": ""})
-    payload = {"question": chat_input, "conversation_history": st.session_state.chat_history}
+    payload = {
+        "question": chat_input,
+        "conversation_history": st.session_state.chat_history,
+        "target_title": st.session_state.get("target_title")
+    }
     response = requests.post(f"{BACKEND_URL}/chat", json=payload)
     if response.status_code == 200:
         data = response.json()
