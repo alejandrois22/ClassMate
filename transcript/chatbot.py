@@ -131,10 +131,12 @@ class Chatbot:
 
         # Define the prompt including conversation history (using Code 2's template)
         prompt_template = PromptTemplate(
-            template="""You are an AI assistant specialized in answering questions based *only* on the provided context. 
-            The provided context is from a transcript of an audio file. If the context does not contain the answer, 
-            say you don't have enough information in the provided text. You also have a conversation history for context. 
-            Answer in the language you are spoken to. 
+            template="""You are an AI assistant designed to answer questions based *only* on the provided context. The context consists of a transcript extracted from an academic lecture audio recording, along with supporting metadata. Utilize both the provided transcript and the conversation history to generate your response. If the transcript does not contain sufficient information to answer the question, state, "I do not have enough information in the provided text." 
+
+Important: Answer exclusively based on the provided context—do not incorporate outside knowledge or assumptions. 
+
+Additionally, if the user asks a question in Spanish, you MUST provide your answer in Spanish. Otherwise, respond in the language of the question.
+
 Conversation History:
 {conversation_history}
 
@@ -142,7 +144,8 @@ Provided Context:
 {documents}
 
 Question: {user_question}
-Answer:""",
+Answer:
+""",
             input_variables=["user_question", "documents", "conversation_history"]
         )
         rag_chain = prompt_template | self.llm | StrOutputParser()
