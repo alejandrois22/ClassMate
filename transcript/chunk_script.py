@@ -80,8 +80,12 @@ class TranscriptChunker:
             try:
                  self.nlp = spacy.load("en_core_web_sm")
             except OSError:
-                 print("Error: No spaCy English model found (tried en_core_web_trf, en_core_web_sm).")
+                 print("\nError: No spaCy English model found (tried en_core_web_trf, en_core_web_sm).\n")
+                 print("*"*35)
+                 print("*"*35)
                  print("Please install a model, e.g., python -m spacy download en_core_web_sm")
+                 print("*"*35)
+                 print("*"*35)
                  raise # Re-raise the error to stop execution
 
         # NLTK word tokenizer is used for token counting to respect max/min/overlap constraints
