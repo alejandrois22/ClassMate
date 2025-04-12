@@ -46,6 +46,7 @@ class Chatbot:
         conn_str = engine.url.render_as_string(hide_password=False)
         conn = None
         result = []
+        CONTEXT_LIMIT_AMOUNT = 4
         try:
             # print("Connecting to database...") # Optional print from Code 2
             conn = psycopg2.connect(conn_str)
@@ -53,25 +54,25 @@ class Chatbot:
 
             if target_title:
                 # Query logic from Code 1 (with LIMIT 3 from Code 2)
-                query = """
+                query = f"""
                 SELECT c.clip_id, c.transcript,
                     1 - (c.embedding <-> %s) AS similarity
                 FROM Clips c
                 JOIN originalAudio o ON c.audio_id = o.audio_id
                 WHERE o.title = %s
                 ORDER BY c.embedding <-> %s
-                LIMIT 3
+                LIMIT {CONTEXT_LIMIT_AMOUNT}
                 """
                 # print("Executing similarity search query with title filter...") # Modified optional print
                 cur.execute(query, (embedding_str, target_title, embedding_str))
             else:
                 # Query logic from Code 2 (modified from Code 1's else branch)
-                query = """
+                query = f"""
                 SELECT clip_id, transcript,
                        1 - (embedding <-> %s) AS similarity
                 FROM Clips
                 ORDER BY embedding <-> %s
-                LIMIT 3
+                LIMIT {CONTEXT_LIMIT_AMOUNT}
                 """
                 # print("Executing similarity search query without title filter...") # Modified optional print
                 cur.execute(query, (embedding_str, embedding_str))
@@ -259,25 +260,37 @@ if __name__ == "__main__":
     if args.mode == 'test':
         # Test mode execution from Code 2
         # --- List of Predefined Questions (using the second list defined in Code 2) ---
-        # Note: Code 2 had two lists, the second overwrites the first. Using the second one.
+        # --- Ted talk Addiction Questions ---
+        # predefined_questions = [
+        #     "What personal experience sparked the speaker's interest in addiction?",
+        #     "Why did the speaker travel around the world, and who did he meet?",
+        #     "What is the traditional view of addiction that the speaker challenges?",
+        #     "How does the example of diamorphine (medical heroin) contradict the traditional view of addiction?",
+        #     "What was the Rat Park experiment, and what did it show?",
+        #     "What human example supports the findings of the Rat Park experiment?",
+        #     "What alternative explanation for addiction does the speaker propose?",
+        #     "What was Portugal's approach to dealing with addiction, and what were the results?",
+        #     "How does our culture typically respond to addiction, according to the speaker?",
+        #     "What is the speaker's main message about how we should treat addicts?",
+        #     "Why does the speaker criticize the show 'Intervention'?",
+        #     "What does the speaker suggest is the true opposite of addiction?",
+        #     "How does the speaker relate modern society to the Rat Park experiment?",
+        #     "What societal trends does the speaker mention as contributing to disconnection?",
+        #     "What did the speaker learn about helping loved ones with addiction?"
+        # ]
+        # --- Gemini Talk Questions ---
         predefined_questions = [
-            "What personal experience sparked the speaker's interest in addiction?",
-            "Why did the speaker travel around the world, and who did he meet?",
-            "What is the traditional view of addiction that the speaker challenges?",
-            "How does the example of diamorphine (medical heroin) contradict the traditional view of addiction?",
-            "What was the Rat Park experiment, and what did it show?",
-            "What human example supports the findings of the Rat Park experiment?",
-            "What alternative explanation for addiction does the speaker propose?",
-            "What was Portugal's approach to dealing with addiction, and what were the results?",
-            "How does our culture typically respond to addiction, according to the speaker?",
-            "What is the speaker's main message about how we should treat addicts?",
-            "Why does the speaker criticize the show 'Intervention'?",
-            "What does the speaker suggest is the true opposite of addiction?",
-            "How does the speaker relate modern society to the Rat Park experiment?",
-            "What societal trends does the speaker mention as contributing to disconnection?",
-            "What did the speaker learn about helping loved ones with addiction?"
-        ]
-        # --- End of Predefined Questions ---
+    "¿Cuál es la novedad que introduce Google con el modelo Gemini Flash 2.0?",
+    "¿Cómo se diferencia Gemini Flash 2.0 de otros productos de generación de imágenes existentes?",
+    "¿Qué funcionalidades de edición de imágenes ofrece Gemini Flash 2.0?",
+    "¿Cuáles son algunos ejemplos prácticos de edición de imágenes presentados en el video?",
+    "¿Qué limitaciones se encontraron respecto a la calidad y precisión de las imágenes generadas?",
+    "¿Cómo se utiliza Gemini Flash 2.0 a través de Google AI Studio?",
+    "¿Qué significa que Gemini Flash 2.0 sea un modelo multimodal?",
+    "¿Para qué casos de uso podría ser útil Gemini Flash 2.0 según el video?",
+    "¿Cómo se integra el uso de Gemini Flash 2.0 con herramientas de escalado de imágenes?",
+    "¿Cuáles son las conclusiones destacadas sobre Gemini Flash 2.0?"
+]
 
         # Run the tests
         run_predefined_tests(chatbot, engine, predefined_questions)
@@ -324,8 +337,10 @@ if __name__ == "__main__":
                  # Optionally reset history or handle error more gracefully
 
 # Example command lines from Code 2 (updated to show --title usage)
-# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "deepseek-r1:14b"
+# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "cogito:14b"
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:14b"
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:7b" --title "My Specific Lecture Title"
+
+# cogito:14b 
 
 # --- END OF MERGED chatbot.py ---
