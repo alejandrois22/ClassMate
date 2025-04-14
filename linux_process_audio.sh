@@ -18,6 +18,9 @@ AUDIO_FILE="$1"
 USERNAME="$2"
 TITLE="$3"
 
+#activate Python virtual env
+source venv/bin/activate
+
 # Write initial status file
 echo "Running" > "status_${TITLE}.txt"
 
