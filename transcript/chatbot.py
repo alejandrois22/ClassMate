@@ -136,7 +136,7 @@ class Chatbot:
 
 Important: Answer exclusively based on the provided context—do not incorporate outside knowledge or assumptions. 
 
-Additionally, if the user asks a question in Spanish, you MUST provide your answer in Spanish. Otherwise, respond in the language of the question.
+Additionally, if the user asks a question in Spanish, you MUST provide your answer in Spanish. Otherwise, respond in English.
 
 Conversation History:
 {conversation_history}
