@@ -4,15 +4,20 @@ from sqlalchemy import create_engine, text
 import os
 from passlib.hash import pbkdf2_sha256
 import subprocess
+import platform
 
 app = Flask(__name__)
 
 # Database configuration
-DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
+DATABASE_URI = "postgresql://admin:secret@localhost:5432/testdb"
 engine = create_engine(DATABASE_URI)
 
 # Initialize Chatbot instance
-chatbot = Chatbot()
+computer_name = platform.node()
+if computer_name == "DESKTOP-jacor":
+    chatbot = Chatbot(llm_model="cogito:14b")
+else:
+    chatbot = Chatbot()
 
 # Global upload folder (base for user-specific folders)
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploaded_audio")
@@ -244,11 +249,21 @@ def process_audio():
 
     # Define a background function to run the pipeline.
     def run_pipeline():
+        current_os = platform.system()
         try:
-            import subprocess
-            # Use Windows command to run the batch file
-            subprocess.run(["cmd", "/c", "process_audio.bat", audio_path, username, title], check=True)
+            print(f"Detected platform OS: {current_os}")
+            if current_os == "Windows":
+                # Use Windows command to run the batch file
+                subprocess.run(["cmd", "/c", "process_audio.bat", audio_path, username, title], check=True)
+            else:
+                # Run Linux shell script
+                script_path = "./linux_process_audio.sh"
+                subprocess.run([script_path, audio_path, username, title], check=True)
+
             print("Audio processing completed successfully for:", title)
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Script execution failed with exit code {e.returncode}")
         except Exception as e:
             print("Error processing audio in background thread:", str(e))
 
