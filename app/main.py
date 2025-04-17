@@ -3,6 +3,7 @@ import requests
 import os
 import time
 
+
 # Configuration – point to your Flask backend.
 BACKEND_URL = "http://localhost:5000"
 
@@ -56,6 +57,7 @@ if not st.session_state.logged_in:
 
 # Sidebar: Audio Upload, Listing, Deletion, and Processing
 with st.sidebar:
+    st.success(f"Welcome, {st.session_state.username}! 👋", icon="✅")
     st.header("Audio Features")
     
     # --- Audio Upload Section ---
@@ -105,6 +107,7 @@ with st.sidebar:
                 fname = audio["filename"]
                 st.markdown(f"**{fname}**")
                 st.audio(audio["url"])
+                st.caption(f"Filename: {fname}")
 
                 # 1) If this is the file currently uploading/processing, show its live status
                 if st.session_state.get("processing_audio") == fname:
@@ -186,37 +189,61 @@ if "chat_history" not in st.session_state:
 # Display conversation history using keys "user" and "chatbot_response"
 for exchange in st.session_state.chat_history:
     with st.chat_message("user"):
-        st.markdown(exchange["user"])
+         st.markdown(f"**🧑 You:** {exchange['user']}")
     with st.chat_message("assistant"):
-        st.markdown(exchange["chatbot_response"])
+       st.markdown(f"**🤖 ClassMate:** {exchange['chatbot_response']}")
 
+
+ 
 # … after you re‐render the conversation history …
 
 # only allow questions once processing is done
 if "processing_audio" in st.session_state:
     st.info("Please wait until your audio file has finished processing.")
 else:
+    
+    # 1) Clear Chat Button
+    if len(st.session_state.chat_history) > 0 and st.button("🧹 Clear Chat History"):
+        st.session_state.chat_history = []
+        st.success("Chat history cleared.")
+        st.rerun()
+
     # Chat input field using st.chat_input
     chat_input = st.chat_input("Enter your question:")
 
     if chat_input:
-        st.session_state.chat_history.append({"user": chat_input, "chatbot_response": ""})
-        payload = {
-            "question": chat_input,
-            "conversation_history": st.session_state.chat_history,
-            "target_title": st.session_state.get("target_title")
-        }
-        response = requests.post(f"{BACKEND_URL}/chat", json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            answer = data.get("answer", "No answer returned.")
-            st.session_state.chat_history[-1]["chatbot_response"] = answer
-            st.rerun()
-        else:
-            st.error("Error getting chatbot response.")
+   # Add user message immediately to chat
+        st.session_state.chat_history.append({
+        "user": chat_input,
+        "chatbot_response": "..."  # Placeholder while waiting for response
+         })
+        st.rerun()  # Triggers page refresh so it shows user's message right away
+
+    # 3) After rerun, look for the first placeholder and fetch the real answer
+    for exchange in st.session_state.chat_history:
+        if exchange["chatbot_response"] == "...":
+
+            payload = {
+                "question": exchange["user"],
+                "conversation_history": st.session_state.chat_history,
+                "target_title": st.session_state.get("target_title")
+                }
+            response = requests.post(f"{BACKEND_URL}/chat", json=payload)
+            if response.status_code == 200:
+                data = response.json()
+                exchange["chatbot_response"] = data.get("answer", "No answer returned.")
+                
+            else:
+                exchange["chatbot_response"] = "❌ Error getting chatbot response."
+
+            st.rerun() # re-render with the real answer
+
+            break  # Only process one at a time (one chatbot response at a time)
 
 
-#  Error: Input file  does not exist
-# 20:06:45 backend.1  | Error: Input file output_files/transcript_GeminiTalk_espa.json does not exist
-# 20:06:47 backend.1  | Error: Input file output_files/chunks_GeminiTalk_espa.csv does not exist
-# 20:06:51 backend.1  | Error: File output_files/original_audio_GeminiTalk_espa.csv does not exist
+if st.download_button("📄 Download Chat", 
+                      data="\n\n".join([f"You: {x['user']}\n{"*"*50}\nClassMate: {x['chatbot_response']}\n{"-"*50}" 
+                                        for x in st.session_state.chat_history]),
+                      file_name="chat_history.txt"):
+ 
+    st.success("Download started!")
