@@ -1,47 +1,95 @@
 from flask import Flask, request, jsonify, send_from_directory
 from transcript.chatbot import Chatbot
 from sqlalchemy import create_engine, text
-import os
+import os, platform, threading, torch, requests, time
 from passlib.hash import pbkdf2_sha256
 import subprocess
-import platform
 
 app = Flask(__name__)
 
-
-
-# Initialize Chatbot instance
-# Database configuration
-computer_name = platform.node()
-if computer_name == "DESKTOP-jacor":
-    chatbot = Chatbot(llm_model="cogito:14b")
+# ———————— Hostname & DB config ————————
+computer_name = platform.node().lower()
+if computer_name == "desktop-jacor":
     DATABASE_URI = "postgresql://admin:secret@localhost:5432/testdb"
+    LLM_MODEL    = "cogito:14b"
 else:
-    chatbot = Chatbot()
     DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
+    LLM_MODEL    = "deepseek-r1:7b"
 
-engine = create_engine(DATABASE_URI)
-
-# Global upload folder (base for user-specific folders)
+engine      = create_engine(DATABASE_URI)
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploaded_audio")
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-@app.route('/chat', methods=['POST'])
+# ———————— Globals & Lock ————————
+chatbot      = None
+_load_lock   = threading.Lock()
+
+# How long to keep the models in memory after last request (seconds)
+IDLE_UNLOAD_DELAY = 5 *60 
+_unload_timer  = None
+
+
+def _do_unload():
+    """Called by timer: actually free GPU and delete chatbot."""
+    global chatbot
+    with _load_lock:
+        if chatbot:
+            # free PyTorch GPU cache
+            torch.cuda.empty_cache()
+            # tell Ollama server to unload the model
+            try:
+                requests.post(
+                    "http://localhost:11434/api/stop",
+                    json={"name": LLM_MODEL},
+                    timeout=5 # caps how long the client will wait for a response before giving up
+                )
+            except requests.exceptions.RequestException as e:
+                print(f"Error unloading model: {e}")
+            # delete the chatbot instance
+            chatbot = None
+
+# unload model AFTER IDLE_UNLOAD_DELAY seconds of INACTIVITY
+def _schedule_unload():
+    """Restart the unload timer."""
+    global _unload_timer
+    # If there’s already a pending unload timer, cancel it...
+    if _unload_timer:
+        _unload_timer.cancel()
+    _unload_timer = threading.Timer(IDLE_UNLOAD_DELAY, _do_unload)
+    _unload_timer.daemon = True
+    _unload_timer.start()
+
+
+@app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
+    global chatbot
+
+    data = request.get_json() or {}
     question = data.get("question")
-    conversation_history = data.get("conversation_history", [])
-    target_title = data.get("target_title")
     if not question:
-        return jsonify({"error": "No question provided"}), 400
+        return jsonify({"error": "Question is required"}), 400
+
+    # ——— 1️⃣ Lazy initialize under lock ———
+    with _load_lock:
+        if chatbot is None:
+            chatbot = Chatbot(
+                llm_model=LLM_MODEL,
+                use_gpu_embeddings=False  # embeddings on CPU
+            )
+
+    # ——— 2️⃣ Generate response ———
     try:
-        response = chatbot.generate_response(question, engine, conversation_history, target_title)
-        return jsonify({"answer": response.get("chatbot_response")})
-    except Exception as e:
-        # Log the exception details so you can debug the error.
-        print("Error in /chat endpoint:", str(e))
-        return jsonify({"error": str(e)}), 500
+        resp = chatbot.generate_response(
+            question, engine,
+            data.get("conversation_history", []),
+            data.get("target_title")
+        )
+        answer = resp.get("chatbot_response", "")
+        return jsonify({"answer": answer})
+    finally:
+        # ——— 3️⃣ Reschedule unload for after IDLE_UNLOAD_DELAY ———
+        _schedule_unload()
+
 
 
 @app.route('/upload-audio', methods=['POST'])

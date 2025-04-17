@@ -13,15 +13,17 @@ from sqlalchemy import create_engine
 from docx import Document # Added for .docx output (from Code 2)
 from docx.shared import Pt # Added for font size if needed (optional, from Code 2)
 from tqdm import tqdm # Added for progress bar during testing (from Code 2)
+import torch
 
 class Chatbot:
-    def __init__(self, embedding_model_name="all-MiniLM-L6-v2", llm_model="deepseek-r1:7b", llm_base_url="http://localhost:11434"):
+    def __init__(self, embedding_model_name="all-MiniLM-L6-v2", llm_model="deepseek-r1:7b", llm_base_url="http://localhost:11434", use_gpu_embeddings=False):
         """
         Initialize the Chatbot with an embedding model and an LLM.
         (Includes initialization prints from Code 2)
         """
         print(f"Initializing Chatbot with embedding model: {embedding_model_name} and LLM: {llm_model}")
-        self.embedding_model = SentenceTransformer(embedding_model_name)
+        device = "cuda" if use_gpu_embeddings and torch.cuda.is_available() else "cpu"
+        self.embedding_model = SentenceTransformer(embedding_model_name, device=device)
         self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
         self.llm_model = llm_model
         self.llm_base_url = llm_base_url
