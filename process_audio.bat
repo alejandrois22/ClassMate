@@ -1,34 +1,57 @@
 @echo off
-setlocal
-
 REM process_audio.bat
-REM Parameters:
-REM   %1 = full path to the audio file
-REM   %2 = username
-REM   %3 = title (audio filename without extension)
+REM %1 = full path to the audio file
+REM %2 = username
+REM %3 = title (filename without extension)
 
-set AUDIO_FILE=%1
-set USERNAME=%2
-set TITLE=%3
+REM --- Validate args ---
+if "%~3"=="" (
+  echo Usage: %~nx0 ^<audio-path^> ^<username^> ^<title^>
+  exit /b 1
+)
 
-REM Write initial status file
-echo Running > "status_%TITLE%.txt"
+set "AUDIO_PATH=%~1"
+set "USERNAME=%~2"
+set "TITLE=%~3"
 
-echo Processing audio file: %AUDIO_FILE%
-python transcript\asr_script.py --input "%AUDIO_FILE%" --output "transcript_%TITLE%.json" --csv_output "original_audio_%TITLE%.csv" --user_id "%USERNAME%" --title "%TITLE%"
-python transcript\chunk_script.py --input "transcript_%TITLE%.json" --output "chunks_%TITLE%.csv" --max_tokens 200 --overlap 20 --min_chunk_tokens 10
-python transcript\embed_script.py --input "chunks_%TITLE%.csv" --output "embeddings_clips_%TITLE%.csv" --model all-MiniLM-L6-v2 --pgvector
-python transcript\db_loader.py --audio_csv "original_audio_%TITLE%.csv" --clips_csv "embeddings_clips_%TITLE%.csv" --db_uri "postgresql://admin:secret@localhost:5434/testdb"
+REM --- Choose where the transcript scripts live ---
+if exist "transcript\" (
+  set "SCRIPT_DIR=transcript"
+) else (
+  set "SCRIPT_DIR=..\..\transcript"
+)
 
-@REM REM Delete intermediate files
-@REM del "transcript_%TITLE%.json"
-@REM del "original_audio_%TITLE%.csv"
-@REM del "chunks_%TITLE%.csv"
-@REM del "embeddings_clips_%TITLE%.csv"
+set "STATUS_FILE=status_%TITLE%.txt"
 
-REM Mark processing as complete
-echo Completed > "status_%TITLE%.txt"
+REM --- Step 1: Transcribe ---
+echo Transcribing>"%STATUS_FILE%"
+python "%SCRIPT_DIR%\asr_script.py" ^
+  --input "%AUDIO_PATH%" ^
+  --output "transcript_%TITLE%.json" ^
+  --csv_output "original_audio_%TITLE%.csv" ^
+  --user_id "%USERNAME%" ^
+  --title "%TITLE%"
 
-echo Audio processing complete.
-pause
-endlocal
+REM --- Step 2: Chunk ---
+echo Chunking>"%STATUS_FILE%"
+python "%SCRIPT_DIR%\chunk_script.py" ^
+  --input "transcript_%TITLE%.json" ^
+  --output "chunks_%TITLE%.csv" ^
+  --max_tokens 200 --overlap 20 --min_chunk_tokens 10
+
+REM --- Step 3: Embed ---
+echo Embedding>"%STATUS_FILE%"
+python "%SCRIPT_DIR%\embed_script.py" ^
+  --input "chunks_%TITLE%.csv" ^
+  --output "embeddings_clips_%TITLE%.csv" ^
+  --model all-MiniLM-L6-v2
+
+REM --- Step 4: Upload to DB ---
+echo Uploading to DB>"%STATUS_FILE%"
+python "%SCRIPT_DIR%\db_loader.py" ^
+  --audio_csv "original_audio_%TITLE%.csv" ^
+  --clips_csv "embeddings_clips_%TITLE%.csv" ^
+  --db_uri "postgresql://admin:secret@localhost:5434/testdb"
+
+REM --- Done ---
+echo Completed>"%STATUS_FILE%"

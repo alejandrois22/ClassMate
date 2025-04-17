@@ -9,7 +9,7 @@ import platform
 app = Flask(__name__)
 
 # Database configuration
-DATABASE_URI = "postgresql://admin:secret@localhost:5432/testdb"
+DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
 engine = create_engine(DATABASE_URI)
 
 # Initialize Chatbot instance
@@ -256,10 +256,12 @@ def process_audio():
             print(f"Detected platform OS: {current_os}")
             user_dir = os.path.join(UPLOAD_FOLDER, user_folder)
             if current_os == "Windows":
-                # on Windows we’d need a similar batch script that writes status_%title%.txt
+                # on Windows, use the batch script from the project root
+                script_path = os.path.join(os.getcwd(), "process_audio.bat")
                 subprocess.run(
-                  ["cmd", "/c", "ALEJANDRO_MUST_TEST_process_audio.bat", audio_path, username, title],
-                  cwd=user_dir, check=True
+                    ["cmd", "/c", script_path, audio_path, username, title],
+                    cwd=user_dir,
+                    check=True
                 )
             else:
                 script_path = os.path.join(os.getcwd(), "linux_process_audio.sh")
