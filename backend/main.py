@@ -8,16 +8,19 @@ import platform
 
 app = Flask(__name__)
 
-# Database configuration
-DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
-engine = create_engine(DATABASE_URI)
+
 
 # Initialize Chatbot instance
+# Database configuration
 computer_name = platform.node()
 if computer_name == "DESKTOP-jacor":
     chatbot = Chatbot(llm_model="cogito:14b")
+    DATABASE_URI = "postgresql://admin:secret@localhost:5432/testdb"
 else:
     chatbot = Chatbot()
+    DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
+
+engine = create_engine(DATABASE_URI)
 
 # Global upload folder (base for user-specific folders)
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploaded_audio")
