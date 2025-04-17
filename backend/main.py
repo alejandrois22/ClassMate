@@ -177,8 +177,10 @@ def list_audios():
     file_list = os.listdir(user_directory)
     audios = []
     for filename in file_list:
-        file_url = request.host_url + f"audio/{user_folder}/{filename}"
-        audios.append({"filename": filename, "url": file_url})
+        # only consider audio files! This is done to skip over the audio_status_files
+        if filename.lower().endswith(('.mp3', '.wav', '.m4a')):
+            file_url = request.host_url + f"audio/{user_folder}/{filename}"
+            audios.append({"filename": filename, "url": file_url})
     return jsonify({"audios": audios}), 200
 
 # ------------------------------
@@ -252,14 +254,20 @@ def process_audio():
         current_os = platform.system()
         try:
             print(f"Detected platform OS: {current_os}")
+            user_dir = os.path.join(UPLOAD_FOLDER, user_folder)
             if current_os == "Windows":
-                # Use Windows command to run the batch file
-                subprocess.run(["cmd", "/c", "process_audio.bat", audio_path, username, title], check=True)
+                # on Windows we’d need a similar batch script that writes status_%title%.txt
+                subprocess.run(
+                  ["cmd", "/c", "process_audio.bat", audio_path, username, title],
+                  cwd=user_dir, check=True
+                )
             else:
-                # Run Linux shell script
-                script_path = "./linux_process_audio.sh"
-                subprocess.run([script_path, audio_path, username, title], check=True)
-
+                script_path = os.path.join(os.getcwd(), "linux_process_audio.sh")
+                # run from inside the user’s folder so that status_<title>.txt ends up there
+                subprocess.run(
+                  [script_path, audio_path, username, title],
+                  cwd=user_dir, check=True
+                )
             print("Audio processing completed successfully for:", title)
 
         except subprocess.CalledProcessError as e:
@@ -273,6 +281,61 @@ def process_audio():
 
     return jsonify({"success": True, "message": "Audio processing started. It may take a few minutes."}), 200
 
+
+@app.route('/api/audio-status', methods=['POST'])
+def audio_status():
+    """
+Retrieve the current processing status of a user's audio file.
+
+Expects a JSON payload containing:
+    - username (str): the user's username.
+    - filename (str): the exact name of the uploaded audio file (including extension).
+
+Workflow:
+1. Validate that both 'username' and 'filename' are provided.
+    - If missing, returns HTTP 400 with {"error": "..."}.
+2. Look up the user's storage folder in the database.
+    - If the user is not found, returns HTTP 404 with {"error": "User not found"}.
+3. Construct the path to the status file: 
+        <UPLOAD_FOLDER>/<storage_folder>/status_<title>.txt
+    where <title> is the filename without its extension.
+4. If the status file exists:
+        - Read its contents, strip whitespace, and return it as {"status": <content>}.
+    Otherwise:
+        - Return {"status": "Not started"}.
+5. Always returns HTTP 200 on success.
+
+Returns:
+    JSON response with a single 'status' field indicating the pipeline step,
+    or an appropriate error message and HTTP status code on failure.
+"""
+    data = request.get_json()
+    username = data.get("username")
+    filename = data.get("filename")
+    if not username or not filename:
+        return jsonify({"error": "username and filename required"}), 400
+
+    # look up the user’s folder
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT storage_folder FROM users WHERE username=:username"),
+            {"username": username}
+        )
+        row = result.fetchone()
+    if not row:
+        return jsonify({"error": "User not found"}), 404
+
+    user_folder = row[0]
+    title, _ = os.path.splitext(filename)
+    status_path = os.path.join(UPLOAD_FOLDER, user_folder, f"status_{title}.txt")
+
+    if os.path.exists(status_path):
+        with open(status_path) as f:
+            status = f.read().strip()
+    else:
+        status = "Not started"
+
+    return jsonify({"status": status}), 200
 
 
 
