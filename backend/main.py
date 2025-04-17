@@ -258,7 +258,7 @@ def process_audio():
             if current_os == "Windows":
                 # on Windows we’d need a similar batch script that writes status_%title%.txt
                 subprocess.run(
-                  ["cmd", "/c", "process_audio.bat", audio_path, username, title],
+                  ["cmd", "/c", "ALEJANDRO_MUST_TEST_process_audio.bat", audio_path, username, title],
                   cwd=user_dir, check=True
                 )
             else:
