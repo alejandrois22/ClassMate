@@ -1,9 +1,15 @@
 import streamlit as st
 import requests
 import os
+import math
+import io # for downloading the conversation as txt
+from st_audiorec import st_audiorec
+import speech_recognition as sr
+import tempfile
 
 # Configuration – point to your Flask backend.
 BACKEND_URL = "http://localhost:5000"
+
 
 st.image("app/assets/logo.png", width=750)  # Adjust the width as needed
 
@@ -54,7 +60,10 @@ if not st.session_state.logged_in:
 # ------------------------------
 
 # Sidebar: Audio Upload, Listing, Deletion, and Processing
+
 with st.sidebar:
+
+    st.success(f"Welcome, {st.session_state.username}! 👋", icon="✅")
     st.header("Audio Features")
     
     # --- Audio Upload Section ---
@@ -87,6 +96,10 @@ with st.sidebar:
             for audio in audios:
                 st.markdown(f"**{audio['filename']}**")
                 st.audio(audio["url"])
+                st.caption(f"Filename: {audio['filename']}")
+                size_mb = audio.get("size", 0) / 1_000_000 if "size" in audio else None
+                if size_mb:
+                    st.caption(f"Size: {math.ceil(size_mb*100)/100} MB")
                 # Button to process audio (runs pipeline)
                 if st.button("Process Audio", key=f"process_{audio['filename']}"):
                     process_response = requests.post(
@@ -141,24 +154,49 @@ if "chat_history" not in st.session_state:
 # Display conversation history using keys "user" and "chatbot_response"
 for exchange in st.session_state.chat_history:
     with st.chat_message("user"):
-        st.markdown(exchange["user"])
+        st.markdown(f"**🧑 You:** {exchange['user']}")
     with st.chat_message("assistant"):
-        st.markdown(exchange["chatbot_response"])
+        st.markdown(f"**🤖 ClassMate:** {exchange['chatbot_response']}")
+    
+# Clear Chat Button
+if st.button("🧹 Clear Chat History"):
+    st.session_state.chat_history = []
+    st.success("Chat history cleared.")
+    st.rerun()
+
+
+
 
 # Chat input field using st.chat_input
 chat_input = st.chat_input("Enter your question:")
 if chat_input:
-    st.session_state.chat_history.append({"user": chat_input, "chatbot_response": ""})
-    payload = {
-        "question": chat_input,
-        "conversation_history": st.session_state.chat_history,
-        "target_title": st.session_state.get("target_title")
-    }
-    response = requests.post(f"{BACKEND_URL}/chat", json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        answer = data.get("answer", "No answer returned.")
-        st.session_state.chat_history[-1]["chatbot_response"] = answer
-        st.rerun()
-    else:
-        st.error("Error getting chatbot response.")
+    # Add user message immediately to chat
+    st.session_state.chat_history.append({
+        "user": chat_input,
+        "chatbot_response": "..."  # Placeholder while waiting for response
+    })
+    st.rerun()  # Triggers page refresh so it shows user's message right away
+
+# Handle incomplete chatbot responses
+for exchange in st.session_state.chat_history:
+    if exchange["chatbot_response"] == "...":
+        payload = {
+            "question": exchange["user"],
+            "conversation_history": st.session_state.chat_history,
+            "target_title": st.session_state.get("target_title")
+        }
+        response = requests.post(f"{BACKEND_URL}/chat", json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            exchange["chatbot_response"] = data.get("answer", "No answer returned.")
+            st.rerun()
+        else:
+            exchange["chatbot_response"] = "❌ Error getting chatbot response."
+            st.rerun()
+        break  # Only process one at a time
+
+if st.download_button("📄 Download Chat", 
+                      data="\n\n".join([f"You: {x['user']}\nClassMate: {x['chatbot_response']}" 
+                                        for x in st.session_state.chat_history]),
+                      file_name="chat_history.txt"):
+    st.success("Download started!")
