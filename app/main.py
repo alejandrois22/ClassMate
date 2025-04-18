@@ -148,8 +148,24 @@ with st.sidebar:
                             st.success(f"Target audio set to: {st.session_state.target_title}")
                             st.rerun()
                     else:
-                        # status_{title}.txt does not exist in the user's uploaded_audios folder, assume we have not started processing yet.
+                        # status_<title>.txt is absent *and* DB says "Not started"
                         st.info("Not yet processed")
+
+                        # --- allow user to start the pipeline now ---
+                        if st.button("Process Audio", key=f"proc_{fname}"):
+                            resp = requests.post(
+                                f"{BACKEND_URL}/api/process-audio",
+                                json={
+                                    "username": st.session_state.username,
+                                    "filename": fname
+                                }
+                            )
+                            if resp.status_code == 200:
+                                st.success("Processing started…")
+                                st.session_state.processing_audio = fname
+                                st.rerun()
+                            else:
+                                st.error("Failed to start processing.")
 
                 # 3) Always let them delete
                 if st.button("Delete", key=f"delete_{fname}"):
@@ -160,6 +176,10 @@ with st.sidebar:
                             "filename": fname
                         }
                     )
+                    fname_without_extension = os.path.splitext(fname)[0]
+                    if fname_without_extension == st.session_state.get("target_title"):
+                        del st.session_state["target_title"]
+                        
                     if del_response.status_code == 200:
                         st.success("File deleted successfully!")
                         st.rerun()

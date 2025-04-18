@@ -386,7 +386,21 @@ Returns:
         with open(status_path) as f:
             status = f.read().strip()
     else:
-        status = "Not started"
+        # ---------- NEW: fall‑back to database ----------
+        #   An audio is considered "processed" when
+        #   1) originalAudio contains a row whose title matches <title>
+        #   2) at least one clip exists that references that audio_id.
+        with engine.connect() as conn:
+            query = text("""
+                SELECT COUNT(*)   -- clips_cnt
+                FROM originalaudio  o
+                JOIN clips c USING (audio_id)
+                WHERE o.title = :title
+            """)
+            # in the line below, if .scalar() returns a Falsey value, it will be replaced by 0 (because of 'or 0')
+            #   (e.g. None or empty string).
+            clips_cnt = conn.execute(query, {"title": title}).scalar() or 0
+        status = "Completed" if clips_cnt > 0 else "Not started"
 
     return jsonify({"status": status}), 200
 
