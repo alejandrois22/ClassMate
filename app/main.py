@@ -65,7 +65,7 @@ with st.sidebar:
     audio_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a"])
     if audio_file is not None:
         st.audio(audio_file, format="audio/wav")
-        if st.button("Upload & Send to Server"):
+        if "processing_audio" not in st.session_state and st.button("Upload & Send to Server"):
             files = {"file": (audio_file.name, audio_file.read())}
             data = {"username": st.session_state.username}
             response = requests.post(f"{BACKEND_URL}/upload-audio", data=data, files=files)
