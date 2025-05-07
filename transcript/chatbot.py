@@ -32,32 +32,30 @@ class Chatbot:
 
     def get_fragments_from_question(self, question, engine, target_title=None):
         """
-        Extract fragments from the PostgreSQL table 'Clips' based on the embedding similarity.
+        Extract fragments from the PostgreSQL table 'Clips' based on the embedding similarity,
+        including their start_time.
         If target_title is provided (from Code 1), only clips with that title are retrieved.
-        Uses LIMIT 3 (from Code 2) and error handling (from Code 2).
+        Uses LIMIT (CONTEXT_LIMIT_AMOUNT) and error handling.
+        Returns a list of tuples: (clip_id, transcript, start_time, similarity).
         """
-        # print(f"Generating embedding for question: '{question[:50]}...'") # Optional print from Code 2
         emb = self.embedding_model.encode(
             question,
-            # show_progress_bar=True, # Can be noisy in loops, disabled for testing loop (from Code 2)
             batch_size=32,
             normalize_embeddings=True  # L2 normalization for cosine similarity
         )
-        # Convert the NumPy array to a string acceptable by pgvector
         embedding_str = "[" + ",".join(map(str, emb)) + "]"
         conn_str = engine.url.render_as_string(hide_password=False)
         conn = None
         result = []
         CONTEXT_LIMIT_AMOUNT = 4
         try:
-            # print("Connecting to database...") # Optional print from Code 2
             conn = psycopg2.connect(conn_str)
             cur = conn.cursor()
 
             if target_title:
-                # Query logic from Code 1 (with LIMIT 3 from Code 2)
+                # Query now includes c.start_time
                 query = f"""
-                SELECT c.clip_id, c.transcript,
+                SELECT c.clip_id, c.transcript, c.start_time,
                     1 - (c.embedding <-> %s) AS similarity
                 FROM Clips c
                 JOIN originalAudio o ON c.audio_id = o.audio_id
@@ -65,54 +63,71 @@ class Chatbot:
                 ORDER BY c.embedding <-> %s
                 LIMIT {CONTEXT_LIMIT_AMOUNT}
                 """
-                # print("Executing similarity search query with title filter...") # Modified optional print
                 cur.execute(query, (embedding_str, target_title, embedding_str))
             else:
-                # Query logic from Code 2 (modified from Code 1's else branch)
+                # Query now includes start_time
                 query = f"""
-                SELECT clip_id, transcript,
+                SELECT clip_id, transcript, start_time,
                        1 - (embedding <-> %s) AS similarity
                 FROM Clips
                 ORDER BY embedding <-> %s
                 LIMIT {CONTEXT_LIMIT_AMOUNT}
                 """
-                # print("Executing similarity search query without title filter...") # Modified optional print
                 cur.execute(query, (embedding_str, embedding_str))
 
-            result = cur.fetchall()
-            # print(f"Retrieved {len(result)} fragments.") # Optional print from Code 2
+            result = cur.fetchall() # Each row is (clip_id, transcript, start_time, similarity)
             cur.close()
         except psycopg2.Error as e:
-            # Error handling from Code 2
             print(f"Database error during fragment retrieval: {e}")
-            # Depending on requirements, you might want to raise the error or return empty
         finally:
-            # Connection closing from Code 2
             if conn:
                 conn.close()
-                # print("Database connection closed.") # Optional print from Code 2
         return result
 
     def generate_response(self, user_question, engine, conversation_history=[], target_title=None):
         """
-        Generate a response by retrieving context from clips and feeding it into an LLM.
-        Includes conversation history (from both).
-        Allows filtering by target_title (from Code 1).
-        Uses context separator '---' (from Code 2).
-        Uses prompt template from Code 2.
-        Returns context_used (from Code 2).
-        Includes LLM invocation error handling (from Code 2).
-        Uses history character limit of 2000 (consistent in both effective implementations).
+        Generate a response by retrieving context from clips (including start_time)
+        and feeding it into an LLM.
+        The 'documents' string will be formatted to include start_time in MM:SS.
         """
-        # Retrieve context fragments (filtered by target_title if provided - merging Code 1 logic)
-        fragments = self.get_fragments_from_question(user_question, engine, target_title)
-        context_list = [fragment[1] for fragment in fragments]
-        # Use clear separator for context pieces (from Code 2)
-        documents = "\n\n---\n\n".join(context_list)
 
-        # --- CONTEXT CAPTURE FOR TESTING (from Code 2) ---
-        # Store the raw context string to return it alongside the response
+        def format_seconds_to_ms_str(seconds_float):
+            """Converts seconds (float) to MM:SS string format."""
+            if seconds_float is None:
+                return "UNKNOWN" # Should ideally not happen if start_time is NOT NULL
+            minutes = int(seconds_float // 60)
+            seconds = int(seconds_float % 60) # Truncates fractional seconds
+            return f"{minutes:02d}:{seconds:02d}"
+
+        # Retrieve context fragments (now includes start_time)
+        # fragments is a list of tuples: (clip_id, transcript, start_time, similarity)
+        fragments = self.get_fragments_from_question(user_question, engine, target_title)
+        
+        formatted_context_blocks = []
+        if fragments:
+            for i, fragment_data in enumerate(fragments):
+                # fragment_data: (clip_id, transcript, start_time, similarity)
+                # Indices: transcript=1, start_time=2
+                transcript_text = fragment_data[1]
+                start_time_seconds = fragment_data[2]
+
+                formatted_time = format_seconds_to_ms_str(start_time_seconds)
+                
+                # Construct each block as specified:
+                # Context X with audio start time <MM:SS>:
+                # <Context_X_fragment>
+                # ---
+                block = f"Context {i+1} with audio start time {formatted_time}:\n{transcript_text}\n---"
+                formatted_context_blocks.append(block)
+        
+        # Join all formatted blocks. If multiple, they are separated by a single newline.
+        # This achieves the desired structure:
+        # Block1 (ending in ---)
+        # Block2 (ending in ---)
+        # ...
+        documents = "\n".join(formatted_context_blocks)
         context_used_for_response = documents if documents else "No context retrieved."
+
         # --- END CONTEXT CAPTURE ---
 
         # print(f"Context retrieved for LLM: {documents[:200]}...") # Optional print from Code 2
@@ -134,11 +149,19 @@ class Chatbot:
 
         # Define the prompt including conversation history (using Code 2's template)
         prompt_template = PromptTemplate(
-            template="""You are an AI assistant designed to answer questions based *only* on the provided context. The context consists of a transcript extracted from an academic lecture audio recording, along with supporting metadata. Utilize both the provided transcript and the conversation history to generate your response. If the transcript does not contain sufficient information to answer the question, state, "I do not have enough information in the provided text." 
+            template="""You are an AI assistant designed to answer questions based *only* on the provided context. The context consists of transcript fragments extracted from an academic lecture audio recording. Each context fragment is presented with its corresponding start time in the audio (e.g., "Context X with audio start time MM:SS: ..."). Utilize both the provided transcript fragments and the conversation history to generate your response.
 
-Important: Answer exclusively based on the provided context—do not incorporate outside knowledge or assumptions. 
+Important:
+* Answer exclusively based on the provided context—do not incorporate outside knowledge or assumptions.
+* If the transcript does not contain sufficient information to answer the question, you MUST state, "I do not have enough information in the provided text."
+* If the user asks a question in Spanish, you MUST provide your answer in Spanish. Otherwise, respond in English.
 
-Additionally, if the user asks a question in Spanish, you MUST provide your answer in Spanish. Otherwise, respond in English.
+Citing Sources:
+After you provide your answer, if you used information from the provided context to formulate that answer, you MUST conclude your response by indicating the start time(s) of the specific context fragment(s) you primarily relied upon.
+* If you used a single context fragment, state: "(Source: Context at MM:SS)"
+* If you used multiple context fragments, state: "(Sources: Context at MM:SS, MM:SS, ...)"
+Replace "MM:SS" with the actual start time(s) from the "Context X with audio start time MM:SS:" line of the fragment(s) you used.
+* If you state "I do not have enough information in the provided text," do not add this sourcing information.
 
 Conversation History:
 {conversation_history}
@@ -339,7 +362,7 @@ if __name__ == "__main__":
                  # Optionally reset history or handle error more gracefully
 
 # Example command lines from Code 2 (updated to show --title usage)
-# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "cogito:14b"
+# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "gemma3:12b-it-q4_K_M"
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:14b"
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:7b" --title "My Specific Lecture Title"
 
