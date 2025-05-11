@@ -11,7 +11,7 @@ app = Flask(__name__)
 computer_name = platform.node().lower()
 if computer_name == "desktop-jacor":
     DATABASE_URI = "postgresql://admin:secret@localhost:5432/testdb"
-    LLM_MODEL    = "cogito:14b"
+    LLM_MODEL    = "cogito:14b" 
 else:
     DATABASE_URI = "postgresql://admin:secret@localhost:5434/testdb"
     LLM_MODEL    = "deepseek-r1:7b"
