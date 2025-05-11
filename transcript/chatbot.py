@@ -304,18 +304,56 @@ if __name__ == "__main__":
         #     "What did the speaker learn about helping loved ones with addiction?"
         # ]
         # --- Gemini Talk Questions ---
+#         predefined_questions = [
+#     "¿Cuál es la novedad que introduce Google con el modelo Gemini Flash 2.0?",
+#     "¿Cómo se diferencia Gemini Flash 2.0 de otros productos de generación de imágenes existentes?",
+#     "¿Qué funcionalidades de edición de imágenes ofrece Gemini Flash 2.0?",
+#     "¿Cuáles son algunos ejemplos prácticos de edición de imágenes presentados en el video?",
+#     "¿Qué limitaciones se encontraron respecto a la calidad y precisión de las imágenes generadas?",
+#     "¿Cómo se utiliza Gemini Flash 2.0 a través de Google AI Studio?",
+#     "¿Qué significa que Gemini Flash 2.0 sea un modelo multimodal?",
+#     "¿Para qué casos de uso podría ser útil Gemini Flash 2.0 según el video?",
+#     "¿Cómo se integra el uso de Gemini Flash 2.0 con herramientas de escalado de imágenes?",
+#     "¿Cuáles son las conclusiones destacadas sobre Gemini Flash 2.0?"
+# ]
         predefined_questions = [
-    "¿Cuál es la novedad que introduce Google con el modelo Gemini Flash 2.0?",
-    "¿Cómo se diferencia Gemini Flash 2.0 de otros productos de generación de imágenes existentes?",
-    "¿Qué funcionalidades de edición de imágenes ofrece Gemini Flash 2.0?",
-    "¿Cuáles son algunos ejemplos prácticos de edición de imágenes presentados en el video?",
-    "¿Qué limitaciones se encontraron respecto a la calidad y precisión de las imágenes generadas?",
-    "¿Cómo se utiliza Gemini Flash 2.0 a través de Google AI Studio?",
-    "¿Qué significa que Gemini Flash 2.0 sea un modelo multimodal?",
-    "¿Para qué casos de uso podría ser útil Gemini Flash 2.0 según el video?",
-    "¿Cómo se integra el uso de Gemini Flash 2.0 con herramientas de escalado de imágenes?",
-    "¿Cuáles son las conclusiones destacadas sobre Gemini Flash 2.0?"
+    "What is the proposed tariff on goods from China?",
+    "What is the proposed tariff on goods from Mexico?",
+    "What is the proposed tariff on goods from Canada?",
+    "What is the proposed tariff on steel and aluminum?",
+    "Who pays tariffs on imported goods?",
+    "What was the Smoot-Hawley Tariff Act?",
+    "Did the Smoot-Hawley Tariff Act work?",
+    "What was a major economic consequence of Trump’s steel tariffs?",
+    "How much did U.S. steel production grow annually due to Trump’s steel tariffs?",
+    "What was the estimated real household income loss in 2021 due to Trump’s tariffs?",
+    "How much revenue did the U.S. government collect from tariffs on China in Obama’s last year?",
+    "What is the U.S. trade deficit?",
+    "What country has the largest trade deficit with the U.S.?",
+    "What industries in the U.S. were impacted by increased steel prices?",
+    "How much could Trump's various tariff plans cost the average American household per year?",
+    "What is one reason U.S. manufacturing jobs declined over the last 50 years?",
+    "What is one economic risk of widespread tariffs?",
+    "What do proponents of tariffs cite as a successful historical period for tariffs?",
+    "What is one argument against the historical success of tariffs?",
+    "What are some unfair trade practices China has been accused of?",
+    "What did some American farmers receive during Trump’s first term due to tariffs?",
+    "What is a potential political issue with tariff exemptions?",
+    "How did some companies gain an advantage under Trump’s tariff policy?",
+    "What is one possible alternative use of tariff revenue mentioned in the video?",
+    "What is one recommendation given to consumers to prepare for tariffs?",
+    "How did Canada and Mexico respond to Trump’s tariffs in early February?",
+    "What is one concern about the effectiveness of tariffs as an economic tool?",
+    "What is a potential long-term consequence of tariffs on U.S. manufacturing?",
+    "What is a major labor-related issue that could hinder U.S. manufacturing growth?",
+    "How did Trump justify his tariffs besides economic reasons?",
+    "What type of businesses are likely to pass tariff costs to consumers?",
+    "How did retaliatory tariffs affect U.S. exports?",
+    "How did the late 19th-century tariff policies lead to corruption?",
+    "How did COVID demonstrate a similar economic effect to tariffs?",
+    "What is the historical comparison made about Trump's tariffs?"
 ]
+
 
         # Run the tests
         run_predefined_tests(chatbot, engine, predefined_questions)
@@ -362,7 +400,7 @@ if __name__ == "__main__":
                  # Optionally reset history or handle error more gracefully
 
 # Example command lines from Code 2 (updated to show --title usage)
-# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "gemma3:12b-it-q4_K_M"
+# python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode test --llm "cogito:14b"  # gemma3:12b-it-q4_K_M
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:14b"
 # python chatbot.py --db_uri postgresql://admin:secret@localhost:5432/testdb --mode interactive --llm "deepseek-r1:7b" --title "My Specific Lecture Title"
 
